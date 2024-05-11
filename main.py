@@ -1,16 +1,26 @@
-# This is a sample Python script.
+# Nev: Bernatsky Marton
+# Neptun: CVZJ6X
+# h: h146635
 
-# Press Shift+F10 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
+from selenium import webdriver
+from kotprog_neptun_automation.automation import AutomationWorker
 
+ACTION_PROMPT = 'Valasszon muveletet:\no: orarend mentese | u: olvasatlan uzenetek mentese | x: kilepes\n-> '
 
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press Ctrl+F8 to toggle the breakpoint.
-
-
-# Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    print_hi('PyCharm')
+    options = webdriver.ChromeOptions()
+    options.add_experimental_option("excludeSwitches", ["enable-logging"])
 
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+    with webdriver.Chrome(options) as browser:
+        worker = AutomationWorker(browser)
+
+        worker.login()
+
+        action = input(ACTION_PROMPT)
+
+        while action != 'x':
+            match action:
+                case 'o': worker.save_schedule()
+                case 'u': worker.save_unread_messages()
+
+            action = input(ACTION_PROMPT)
