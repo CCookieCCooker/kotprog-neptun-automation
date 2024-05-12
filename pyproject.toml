@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kotprog_neptun_automation"
+version = "1.0"
+requires-python = ">=3.8"
+dependencies = [
+    "selenium>=4.20.0"
+]
+readme = "README.md"
+authors = [
+    {name = "CCookieCCooker", email = "marton.bernatsky@gmail.com"}
+]
+description = "Python programozas a gyakorlatban kotelező program"
+
+[project.urls]
+Homepage = "https://github.com/CCookieCCooker/kotprog-neptun-automation"
+Issues = "https://github.com/CCookieCCooker/kotprog-neptun-automation/issues"
