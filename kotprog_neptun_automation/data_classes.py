@@ -39,3 +39,20 @@ class Message(DataItem):
             self.date.strftime('%Y.%m.%d. %H:%M:%S'),
             self.title
         ]
+
+
+class Course(DataItem):
+    def __init__(self, title: str, course_code: str, subject_group: str, credit_points: int, completed: bool):
+        super().__init__(title)
+        self.course_code = course_code
+        self.subject_group = subject_group
+        self.credit_points = credit_points
+        self.completed = completed
+
+
+class Subcourse:
+    def __init__(self, code: str, teachers: str, timetable_info: str, full: bool):
+        self.code = code
+        self.teachers = teachers
+        self.timetable_info = timetable_info
+        self.full = full

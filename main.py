@@ -5,7 +5,9 @@
 from selenium import webdriver
 from kotprog_neptun_automation.automation import AutomationWorker
 
-ACTION_PROMPT = 'Valasszon muveletet:\no: orarend mentese | u: olvasatlan uzenetek mentese | x: kilepes\n-> '
+ACTION_PROMPT = ('Valasszon muveletet:\n'
+                 'o: Orarend mentese | u: Olvasatlan uzenetek mentese | k: Kurzusfelvetel\n'
+                 'x: Kilepes\n-> ')
 
 if __name__ == '__main__':
     options = webdriver.ChromeOptions()
@@ -16,11 +18,12 @@ if __name__ == '__main__':
 
         worker.login()
 
-        action = input(ACTION_PROMPT)
+        action = input(ACTION_PROMPT).lower()
 
         while action != 'x':
             match action:
                 case 'o': worker.save_schedule()
                 case 'u': worker.save_unread_messages()
+                case 'k': worker.course_registration()
 
             action = input(ACTION_PROMPT)

@@ -9,25 +9,33 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as cond
 from selenium.webdriver.support.ui import Select
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
+from selenium.webdriver import ActionChains
 from getpass import getpass
 
-from kotprog_neptun_automation.data_classes import ScheduleItem, Message
+from kotprog_neptun_automation.data_classes import ScheduleItem, Message, Course, Subcourse
 
 
 class AutomationWorker:
     def __init__(self, browser: WebDriver, timeout: int = 10):
         self._page_url = 'https://neptun.szte.hu/hallgato'
-        self._login_failed_notification_id = 'validlogin_popupTable'
-
         self.browser = browser
         self.wait = WebDriverWait(self.browser, timeout)
         self.wait_one = WebDriverWait(self.browser, 1)
+        self._logged_in_user = None
 
     # region Properties
 
     @property
     def page_url(self):
         return self._page_url
+
+    @property
+    def logged_in_user(self):
+        return self._logged_in_user
+
+    @logged_in_user.setter
+    def logged_in_user(self, user):
+        self._logged_in_user = user
 
     # endregion Properties
 
@@ -55,11 +63,12 @@ class AutomationWorker:
             print('Bejelentkezes...')
 
             try:
-                self.wait.until(cond.any_of(cond.url_changes('https://neptun.szte.hu/hallgato/main.aspx')))
+                self.wait.until(cond.invisibility_of_element_located((By.ID, 'user')))
             except TimeoutException:
                 print('A bejelentkezes sikertelen volt, mert hibas adatokat adott meg.\nProbalja ujra.')
             else:
                 print('Sikeres bejelentkezes {} felhasznalokent.'.format(user))
+                self.logged_in_user = user
                 self.close_dialog()
                 break
 
@@ -92,7 +101,8 @@ class AutomationWorker:
 
         self.wait.until(cond.visibility_of_element_located((By.CSS_SELECTOR, '#dvwkcontaienr th:nth-child(2)')))
 
-        self.browser.find_element(By.ID, 'upFunction_c_common_timetable_upParent_tabOrarend_ctl00_up_timeTablePerson_upMaxLimit_personTimetable_upFilter_chklTimetableType_1').click()
+        self.browser.find_element(By.ID,
+                                  'upFunction_c_common_timetable_upParent_tabOrarend_ctl00_up_timeTablePerson_upMaxLimit_personTimetable_upFilter_chklTimetableType_1').click()
         tajm.sleep(0.5)
         self.wait.until(cond.invisibility_of_element_located((By.ID, 'loadingpannel')))
 
@@ -158,6 +168,10 @@ class AutomationWorker:
         page_size_select.select_by_value('500')
         self.wait.until(cond.invisibility_of_element_located((By.ID, 'imganimation')))
 
+        while self.browser.find_element(By.CSS_SELECTOR, '.pagerlink_disabled').text != '1':
+            self.browser.find_elements(By.CSS_SELECTOR, '.pagerlink')[0].click()
+            self.wait.until(cond.invisibility_of_element_located((By.ID, 'imganimation')))
+
         unread_messages = self.read_currently_displayed_unread_messages()
 
         while True:
@@ -186,3 +200,164 @@ class AutomationWorker:
             unread_messages.append(Message(title, date))
 
         return unread_messages
+
+    def course_registration(self):
+        self.browser.find_element(By.ID, 'mb1_Targyak').click()
+        self.browser.find_element(By.ID, 'mb1_Targyak_Targyfelvetel').click()
+
+        semester_select = Select(self.browser.find_element(By.ID, 'upFilter_cmbTerms'))
+
+        print('Valasszon felevet:')
+        for i in range(0, len(semester_select.options)):
+            print('{}: {}'.format(i, semester_select.options[i].text))
+
+        while True:
+            try:
+                chosen_id = int(input('-> '))
+                if chosen_id < 0 or chosen_id > len(semester_select.options) - 1:
+                    raise ValueError
+                break
+            except ValueError:
+                print('A megadott ertek nem helyes, probalja ujra')
+
+        semester_select.select_by_visible_text(semester_select.options[chosen_id].text)
+        self.wait.until(cond.invisibility_of_element_located((By.ID, 'upFilter_h_addsubjects_searchpanel_animation')))
+        self.browser.find_element(By.ID, 'upFilter_expandedsearchbutton').click()
+        self.wait.until(cond.visibility_of_element_located((By.ID, 'h_addsubjects_gridSubjects_ddlPageSize')))
+        page_size_select = Select(self.browser.find_element(By.ID, 'h_addsubjects_gridSubjects_ddlPageSize'))
+        page_size_select.select_by_value('500')
+        self.wait.until(cond.visibility_of_element_located((By.ID, 'imganimation')))
+        self.wait.until(cond.invisibility_of_element_located((By.ID, 'imganimation')))
+
+        print('Kurzusok betoltese...')
+        courses = self.read_currently_displayed_courses()
+
+        while True:
+            try:
+                next_page_button = self.browser.find_element(By.CSS_SELECTOR, '.pagerlink_disabled + .pagerlink')
+            except NoSuchElementException:
+                break
+            next_page_button.click()
+            self.wait.until(cond.invisibility_of_element_located((By.ID, 'imganimation')))
+            courses.extend(self.read_currently_displayed_courses())
+
+        for i in range(0, len(courses) - 1):
+            print(f'[{i}] {courses[i].title} : {courses[i].subject_group} : {courses[i].credit_points} kredit : '
+                  f'{"teljesített" if courses[i].completed else "még nem teljesített"}')
+
+        input_str = 'a'
+        while True:
+            if input_str[0].isnumeric():
+                try:
+                    chosen_course_id = int(input_str)
+                    break
+                except ValueError:
+                    print('Hibás formátum!')
+
+            print('Válasszon kurzust a sorszáma megadásával, vagy adjon meg egy szöveget a kereséshez')
+            input_str = input('-> ')
+            for i in range(0, len(courses) - 1):
+                if courses[i].title.lower().startswith(input_str.lower()):
+                    print(
+                        f'[{i}] {courses[i].title} : {courses[i].subject_group} : {courses[i].credit_points} kredit : '
+                        f'{"teljesített" if courses[i].completed else "még nem teljesített"}')
+
+        (self.browser.find_element(By.CSS_SELECTOR, f'#h_addsubjects_gridSubjects_bodytable > tbody > '
+                                                    f'tr:nth-child({chosen_course_id}) > td:nth-child(12) > span')
+         .click())
+
+        self.wait.until(cond.visibility_of_element_located((By.ID, 'Addsubject_course1_gridCourses_bodytable')))
+
+        subcourses = self.read_subcourses()
+
+        if len(subcourses) > 1:
+            print('A választott kurzushoz több időpont is tartozik:')
+            for i in range(0, len(subcourses)):
+                print(f'[{i}] {subcourses[i].code} : {subcourses[i].teachers} : '
+                      f'{subcourses[i].timetable_info} : {subcourses[i].full}')
+            while True:
+                string = input('Válasszon az id megadásával\n-> ')
+                try:
+                    subcourse_id = int(string)
+                    break
+                except ValueError:
+                    print('Hibás formátum!')
+        else:
+            subcourse_id = 0
+
+        (self.browser.find_element(By.CSS_SELECTOR, f'#Addsubject_course1_gridCourses_bodytable > tbody > '
+                                                    f'tr:nth-child({subcourse_id + 1}) > td:nth-child(14) > input')
+         .click())
+
+        self.browser.find_element(By.ID, 'function_update1').click()
+        try:
+            self.wait_one.until(cond.visibility_of_element_located((By.ID, '_imgError')))
+            print('Hiba történt a kurzusfelvétel során!')
+        except TimeoutException:
+            print('A kurzusfelvétel sikeresen megtörtént!')
+
+        self.wait.until(cond.visibility_of_element_located((By.CSS_SELECTOR, '.ui-dialog-footerbar.ui-widget-header'
+                                                                             '.ui-corner-all.ui-helper-clearfix > '
+                                                                             'input')))
+        tajm.sleep(1)
+        self.browser.execute_script('var dolgok = document.getElementsByClassName("ui-widget-overlay"); '
+                                    'dolgok[0].remove();'
+                                    'dolgok[0].remove();')
+
+        self.browser.find_element(By.CSS_SELECTOR, '.ui-dialog-footerbar.ui-widget-header.ui-corner-all'
+                                                   '.ui-helper-clearfix > input').click()
+
+        self.browser.execute_script('document.getElementsByClassName("ui-dialog ui-widget ui-widget-content '
+                                    'ui-corner-all ui-front ui-draggable ui-resizable")[0].remove()')
+
+    def read_currently_displayed_courses(self):
+        courses = []
+        courses_table = self.browser.find_element(By.ID, 'h_addsubjects_gridSubjects_bodytable')
+        course_rows = courses_table.find_elements(By.CSS_SELECTOR, 'tbody > tr')
+
+        for course_row in course_rows:
+            title = course_row.find_element(By.CSS_SELECTOR, 'td:nth-child(2) > span').text
+            course_code = course_row.find_element(By.CSS_SELECTOR, 'td:nth-child(3)').text
+            subject_group = course_row.find_element(By.CSS_SELECTOR, 'td:nth-child(4)').text
+            credit_points = int(course_row.find_element(By.CSS_SELECTOR, 'td:nth-child(7)').text)
+            try:
+                course_row.find_element(By.CSS_SELECTOR, 'td:nth-child(10) > img')
+                completed = True
+            except NoSuchElementException:
+                completed = False
+
+            courses.append(Course(
+                title,
+                course_code,
+                subject_group,
+                credit_points,
+                completed
+            ))
+
+        return courses
+
+    def read_subcourses(self):
+        subcourses = []
+        subcourses_table = self.browser.find_element(By.ID, 'Addsubject_course1_gridCourses_bodytable')
+        subcourse_rows = subcourses_table.find_elements(By.CSS_SELECTOR, 'tbody > tr')
+
+        for subcourse_row in subcourse_rows:
+            code = subcourse_row.find_element(By.CSS_SELECTOR, 'td:nth-child(2)').text
+            if code == '':
+                code = subcourse_row.find_element(By.CSS_SELECTOR, 'td:nth-child(2) > span').text
+            applied_nums = subcourse_row.find_element(By.CSS_SELECTOR, 'td:nth-child(4)').text.split('/')
+            full = applied_nums[0] >= applied_nums[2]
+            timetable_info = subcourse_row.find_element(By.CSS_SELECTOR, 'td:nth-child(7)').text
+            teachers = subcourse_row.find_element(By.CSS_SELECTOR, 'td:nth-child(8)').text
+
+            print(f'{code} : {teachers} : '
+                  f'{timetable_info} : {full}')
+
+            subcourses.append(Subcourse(
+                code,
+                teachers,
+                timetable_info,
+                full
+            ))
+
+        return subcourses
