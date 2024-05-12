@@ -4,11 +4,14 @@ from datetime import time
 
 DAYS_OF_WEEK = ['Hétfő', 'Kedd', 'Szerda', 'Csütörtök', 'Péntek', 'Szombat', 'Vasárnap']
 
+
+# Adat tarolo base type
 class DataItem:
     def __init__(self, title: str):
         self.title = title
 
 
+# Orarend infokat tarolo tipus
 class ScheduleItem(DataItem):
     def __init__(self, title: str, course_code: str, item_type: str, day_of_week: int, start_time: time, end_time: time):
         super().__init__(title)
@@ -18,6 +21,7 @@ class ScheduleItem(DataItem):
         self.start_time = start_time
         self.end_time = end_time
 
+    # Adatok tombbe alakitasa
     def to_csv_values(self) -> [str]:
         return [
             self.title,
@@ -29,11 +33,13 @@ class ScheduleItem(DataItem):
         ]
 
 
+# Uzeneteket tarolo tipus
 class Message(DataItem):
     def __init__(self, title: str, date: datetime.datetime):
         super().__init__(title)
         self.date = date
 
+    # Adatok tombbe alakitasa
     def to_csv_values(self) -> [str]:
         return [
             self.date.strftime('%Y.%m.%d. %H:%M:%S'),
@@ -41,6 +47,7 @@ class Message(DataItem):
         ]
 
 
+# Kurzusokat tarolo tipus
 class Course(DataItem):
     def __init__(self, title: str, course_code: str, subject_group: str, credit_points: int, completed: bool):
         super().__init__(title)
@@ -50,6 +57,7 @@ class Course(DataItem):
         self.completed = completed
 
 
+# Kurzus idopontokat tarolo tipus
 class Subcourse(DataItem):
     def __init__(self, title: str, teachers: str, timetable_info: str, full: bool):
         super().__init__(title)
@@ -57,6 +65,8 @@ class Subcourse(DataItem):
         self.timetable_info = timetable_info
         self.full = full
 
+
+# Feleves atlagokat tarolo tipus
 class SemesterAverages(DataItem):
     def __init__(self, title: str, traditional_average, credit_index, adjusted_credit_index, recognized_credits,
                  completed_credits, summed_adjusted_credit_index, summed_recognized_credits, summed_completed_credits,
@@ -78,6 +88,7 @@ class SemesterAverages(DataItem):
         self.financial_study_group = financial_study_group
         self.academic_study_group = academic_study_group
 
+    # Adatok tombbe alakitasa
     def to_csv_values(self) -> [str]:
         return [
             self.title,
