@@ -12,7 +12,7 @@ from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from selenium.webdriver import ActionChains
 from getpass import getpass
 
-from kotprog_neptun_automation.data_classes import ScheduleItem, Message, Course, Subcourse
+from kotprog_neptun_automation.data_classes import ScheduleItem, Message, Course, Subcourse, SemesterAverages
 
 
 class AutomationWorker:
@@ -273,7 +273,7 @@ class AutomationWorker:
         if len(subcourses) > 1:
             print('A választott kurzushoz több időpont is tartozik:')
             for i in range(0, len(subcourses)):
-                print(f'[{i}] {subcourses[i].code} : {subcourses[i].teachers} : '
+                print(f'[{i}] {subcourses[i].title} : {subcourses[i].teachers} : '
                       f'{subcourses[i].timetable_info} : {subcourses[i].full}')
             while True:
                 string = input('Válasszon az id megadásával\n-> ')
@@ -350,9 +350,6 @@ class AutomationWorker:
             timetable_info = subcourse_row.find_element(By.CSS_SELECTOR, 'td:nth-child(7)').text
             teachers = subcourse_row.find_element(By.CSS_SELECTOR, 'td:nth-child(8)').text
 
-            print(f'{code} : {teachers} : '
-                  f'{timetable_info} : {full}')
-
             subcourses.append(Subcourse(
                 code,
                 teachers,
@@ -361,3 +358,60 @@ class AutomationWorker:
             ))
 
         return subcourses
+
+    def save_averages(self):
+        self.browser.find_element(By.ID, 'mb1_Tanulmanyok').click()
+        self.browser.find_element(By.ID, 'mb1_Tanulmanyok_Tanulmanyiatlagok').click()
+
+        # Varunk a betoltesre
+        self.wait.until(cond.visibility_of_element_located((By.ID, 'imgcollapse_allsubrows')))
+
+        # Lenyitunk minden felevet, ha ez meg nem tortent meg
+        collapse_toggle = self.browser.find_element(By.ID, 'imgcollapse_allsubrows')
+        if collapse_toggle.get_attribute('src').endswith('plus_2.gif'):
+            self.browser.find_element(By.ID, 'imgcollapse_allsubrows').click()
+
+        # Megvarjuk, hogy betoltse az osszes felev adatat
+        self.wait.until(cond.invisibility_of_element_located((By.ID, 'imganimation')))
+
+        table_body = self.browser.find_element(By.CSS_SELECTOR,
+                                               '#h_officialnote_average_gridAverages_bodytable > tbody')
+        semester_headers = self.browser.find_elements(By.CSS_SELECTOR, 'tr[hc="true"]')
+        semester_subrows = self.browser.find_elements(By.CLASS_NAME, 'subrow')
+        data = []
+
+        for i in range(0, len(semester_headers) - 1):
+            title = semester_headers[i].find_element(By.CSS_SELECTOR, 'td:nth-child(2)').text
+            values = semester_subrows[i].find_elements(By.CSS_SELECTOR, 'strong')
+            traditional_average = values[0].text
+            credit_index = values[1].text
+            adjusted_credit_index = values[2].text
+            recognized_credits = values[3].text
+            completed_credits = values[4].text
+            summed_adjusted_credit_index = values[5].text
+            summed_recognized_credits = values[6].text
+            summed_completed_credits = values[7].text
+            cummulated_completion = values[8].text
+            two_semester_credits = values[9].text
+            two_semester_weighted_average = values[10].text
+            two_semester_adjusted_credit_index = values[11].text
+            financial_study_group = values[12].text
+            academic_study_group = values[13].text
+
+            data.append(
+                SemesterAverages(title, traditional_average, credit_index, adjusted_credit_index, recognized_credits,
+                                 completed_credits, summed_adjusted_credit_index, summed_recognized_credits,
+                                 summed_completed_credits,
+                                 cummulated_completion, two_semester_credits, two_semester_weighted_average,
+                                 two_semester_adjusted_credit_index, financial_study_group, academic_study_group))
+
+
+        with open('averages.csv', 'w') as file:
+            writer = csv.writer(file, delimiter=';', lineterminator='\n')
+            writer.writerow(['Félév', 'Hagyományos átlag', 'Kreditindex', 'Korrigált kreditindex', 'Elismert kredit',
+                             'Teljesített kredit', 'Göngyölt korr. kreditindex', 'Göngyölt elismert kredit',
+                             'Göngyölt teljesítettt kredit', 'Kum.rel.össztelj.%', '2 féléves megsz.kredit',
+                             '2 féléves súlyozott átlag', '2 féléves korr.kr.index', 'Pénzügyi tanuló csoport',
+                             'Tanulmányi tanuló csoport'])
+            for data_item in data:
+                writer.writerow(data_item.to_csv_values())

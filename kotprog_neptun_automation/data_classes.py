@@ -50,9 +50,49 @@ class Course(DataItem):
         self.completed = completed
 
 
-class Subcourse:
-    def __init__(self, code: str, teachers: str, timetable_info: str, full: bool):
-        self.code = code
+class Subcourse(DataItem):
+    def __init__(self, title: str, teachers: str, timetable_info: str, full: bool):
+        super().__init__(title)
         self.teachers = teachers
         self.timetable_info = timetable_info
         self.full = full
+
+class SemesterAverages(DataItem):
+    def __init__(self, title: str, traditional_average, credit_index, adjusted_credit_index, recognized_credits,
+                 completed_credits, summed_adjusted_credit_index, summed_recognized_credits, summed_completed_credits,
+                 cummulated_completion, two_semester_credits, two_semester_weighted_average,
+                 two_semester_adjusted_credit_index, financial_study_group, academic_study_group):
+        super().__init__(title)
+        self.traditional_average = traditional_average
+        self.credit_index = credit_index
+        self.adjusted_credit_index = adjusted_credit_index
+        self.recognized_credits = recognized_credits
+        self.completed_credits = completed_credits
+        self.summed_adjusted_credit_index = summed_adjusted_credit_index
+        self.summed_recognized_credits = summed_recognized_credits
+        self.summed_completed_credits = summed_completed_credits
+        self.cummulated_completion = cummulated_completion
+        self.two_semester_credits = two_semester_credits
+        self.two_semester_weighted_average = two_semester_weighted_average
+        self.two_semester_adjusted_credit_index = two_semester_adjusted_credit_index
+        self.financial_study_group = financial_study_group
+        self.academic_study_group = academic_study_group
+
+    def to_csv_values(self) -> [str]:
+        return [
+            self.title,
+            self.traditional_average,
+            self.credit_index,
+            self.adjusted_credit_index,
+            self.recognized_credits,
+            self.completed_credits,
+            self.summed_adjusted_credit_index,
+            self.summed_recognized_credits,
+            self.summed_completed_credits,
+            self.cummulated_completion,
+            self.two_semester_credits,
+            self.two_semester_weighted_average,
+            self.two_semester_adjusted_credit_index,
+            self.financial_study_group,
+            self.academic_study_group
+        ]
