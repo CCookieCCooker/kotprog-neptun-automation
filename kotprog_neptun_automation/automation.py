@@ -9,7 +9,6 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as cond
 from selenium.webdriver.support.ui import Select
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
-from selenium.webdriver import ActionChains
 from getpass import getpass
 
 from kotprog_neptun_automation.data_classes import ScheduleItem, Message, Course, Subcourse, SemesterAverages
@@ -39,16 +38,20 @@ class AutomationWorker:
 
     # endregion Properties
 
+    # Bejelentkezes
     def login(self):
+        # Betoltjuk az oldalt
         self.browser.get(self.page_url)
         self.wait.until(cond.all_of(cond.presence_of_element_located((By.ID, 'user')),
                                     cond.presence_of_element_located((By.ID, 'pwd')),
                                     cond.presence_of_element_located((By.ID, 'btnSubmit'))))
 
+        # Megkeressuk az input-okat
         user_input = self.browser.find_element(By.ID, 'user')
         pwd_input = self.browser.find_element(By.ID, 'pwd')
         submit_input = self.browser.find_element(By.ID, 'btnSubmit')
 
+        # Elkerjuk az adatokat es bejelentkezunk
         while True:
             user = input('Adja meg a Neptun bejelentkezesi azonositojat:\n-> ')
             user_input.clear()
@@ -64,6 +67,7 @@ class AutomationWorker:
 
             try:
                 self.wait.until(cond.invisibility_of_element_located((By.ID, 'user')))
+            # Ha hibas adatokat adott meg a felhasznalo, akkor ujra propmt-olunk
             except TimeoutException:
                 print('A bejelentkezes sikertelen volt, mert hibas adatokat adott meg.\nProbalja ujra.')
             else:
@@ -72,6 +76,7 @@ class AutomationWorker:
                 self.close_dialog()
                 break
 
+    # Bejelentkezes utani popup bezarasa
     def close_dialog(self):
         dialog_selector = '.ui-dialog.ui-widget.ui-widget-content.ui-corner-all.ui-front.ui-draggable.ui-resizable'
         close_selector = '{} .ui-dialog-titlebar-close'.format(dialog_selector)
@@ -83,7 +88,9 @@ class AutomationWorker:
             close_button = self.browser.find_element(By.CSS_SELECTOR, close_selector)
             close_button.click()
 
+    # Orarend infok mentese CSV fajlba
     def save_schedule(self):
+        # Nap es az alapjan het kivalasztasa
         selected_day = input('Adjon meg egy napot eeee.hh.nn formatumban:\n(Az orarend arrol a hetrol fog keszulni, '
                              'amelybe ez a nap tartozik)\n(A mai nap hasznalatahoz irjon az "m" erteket adja meg)\n-> ')
 
@@ -96,6 +103,7 @@ class AutomationWorker:
                 except ValueError:
                     selected_day = input('Hiba, adjon meg egy helyes formatumu datumot:\n-> ')
 
+        # Atnavigalunk az oldalra
         self.browser.find_element(By.ID, 'mb1_Tanulmanyok').click()
         self.browser.find_element(By.ID, 'mb1_Tanulmanyok_Órarend').click()
 
@@ -106,12 +114,9 @@ class AutomationWorker:
         tajm.sleep(0.5)
         self.wait.until(cond.invisibility_of_element_located((By.ID, 'loadingpannel')))
 
+        # Elnavigalunk a valasztott nap hetere
         week_start, week_end = self.currently_displayed_week()
-
         while not (week_start <= selected_day <= week_end):
-            print('start {}.{}.{}'.format(week_start.year, week_start.month, week_start.day))
-            print('curr {}.{}.{}'.format(selected_day.year, selected_day.month, selected_day.day))
-            print('end {}.{}.{}'.format(week_end.year, week_end.month, week_end.day))
             self.wait.until(cond.invisibility_of_element_located((By.ID, 'loadingpannel')))
             if week_start > selected_day:
                 self.browser.find_element(By.ID, 'sfprevbtn').click()
@@ -119,9 +124,11 @@ class AutomationWorker:
                 self.browser.find_element(By.ID, 'sfnextbtn').click()
             [week_start, week_end] = self.currently_displayed_week()
 
+        # Varunk a betoltesre
         tajm.sleep(0.5)
         self.wait.until(cond.invisibility_of_element_located((By.ID, 'loadingpannel')))
 
+        # Kiolvassuk az orarend dolgait
         schedule_items = []
         day_divs = self.browser.find_elements(By.CLASS_NAME, 'tg-col-eventwrapper')
         for i in range(0, 7):
@@ -141,15 +148,14 @@ class AutomationWorker:
                 end_time = time.fromisoformat(start_and_end[1].strip())
                 schedule_items.append(ScheduleItem(title, course_code, item_type, i, start_time, end_time))
 
-        for schedule_item in schedule_items:
-            print(''.join(str(v) for v in schedule_item.__dict__.values()))
-
+        # Kiirjuk CSV fajlba
         with open('schedule.csv', 'w') as file:
             writer = csv.writer(file, delimiter=',', lineterminator='\n')
             writer.writerow(['Kurzus neve', 'Kurzuskód', 'Esemény típusa', 'Hét napja', 'Kezdés', 'Befejezés'])
             for schedule_item in schedule_items:
                 writer.writerow(schedule_item.to_csv_values())
 
+    # Az eppen megjelenitett het eleje es vege
     def currently_displayed_week(self) -> Tuple[datetime, datetime]:
         start_date_str = (self.browser.find_element(By.CSS_SELECTOR, '#dvwkcontaienr th:nth-child(2)')
                           .get_attribute('abbr'))
@@ -159,21 +165,27 @@ class AutomationWorker:
 
         return start_date, end_date
 
+    # Olvasatlan uzenetek mentese CSV fajlba
     def save_unread_messages(self):
+        # Az oldalra navigalunk
         self.browser.find_element(By.ID, '_lnkInbox').click()
         self.wait.until(cond.visibility_of_element_located((By.CSS_SELECTOR,
                                                             '#c_messages_gridMessages_tablebottom .grid_RowCount')))
 
+        # 500-ra allitjuk az oldal meretet
         page_size_select = Select(self.browser.find_element(By.ID, 'c_messages_gridMessages_ddlPageSize'))
         page_size_select.select_by_value('500')
         self.wait.until(cond.invisibility_of_element_located((By.ID, 'imganimation')))
 
+        # Az elso oldalra megyunk, hogy az elejerol tudjunk kezdeni
         while self.browser.find_element(By.CSS_SELECTOR, '.pagerlink_disabled').text != '1':
             self.browser.find_elements(By.CSS_SELECTOR, '.pagerlink')[0].click()
             self.wait.until(cond.invisibility_of_element_located((By.ID, 'imganimation')))
 
+        # Elso oldal olvasasa
         unread_messages = self.read_currently_displayed_unread_messages()
 
+        # Vegigmegyunk az osszes oldalon
         while True:
             try:
                 next_page_button = self.browser.find_element(By.CSS_SELECTOR, '.pagerlink_disabled + .pagerlink')
@@ -183,12 +195,14 @@ class AutomationWorker:
             self.wait.until(cond.invisibility_of_element_located((By.ID, 'imganimation')))
             unread_messages.extend(self.read_currently_displayed_unread_messages())
 
+        # Mentjuk csv fajlba
         with open('unread_messages.csv', 'w') as file:
-            writer = csv.writer(file, delimiter=',', lineterminator='\n')
+            writer = csv.writer(file, delimiter=';', lineterminator='\n')
             writer.writerow(['Érkezés időpontja', 'Üzenet tárgya'])
             for unread_message in unread_messages:
                 writer.writerow(unread_message.to_csv_values())
 
+    # Az ezen az oldalon megjelenitett olvasatlan uzenetek betoltese
     def read_currently_displayed_unread_messages(self):
         unread_messages = []
         messages_table = self.browser.find_element(By.ID, 'c_messages_gridMessages_bodytable')
@@ -201,12 +215,16 @@ class AutomationWorker:
 
         return unread_messages
 
+    # Kurzus regisztracio
     def course_registration(self):
+        # Atnavigalunk az oldalra
         self.browser.find_element(By.ID, 'mb1_Targyak').click()
         self.browser.find_element(By.ID, 'mb1_Targyak_Targyfelvetel').click()
 
+        # Megnezzuk, hogy milyen feleveket lehet valasztani
         semester_select = Select(self.browser.find_element(By.ID, 'upFilter_cmbTerms'))
 
+        # Felev valasztasa
         print('Valasszon felevet:')
         for i in range(0, len(semester_select.options)):
             print('{}: {}'.format(i, semester_select.options[i].text))
@@ -220,18 +238,23 @@ class AutomationWorker:
             except ValueError:
                 print('A megadott ertek nem helyes, probalja ujra')
 
+        # Kivalasztjuk a felvet
         semester_select.select_by_visible_text(semester_select.options[chosen_id].text)
         self.wait.until(cond.invisibility_of_element_located((By.ID, 'upFilter_h_addsubjects_searchpanel_animation')))
+        # Ramegyunk a listazas gombra
         self.browser.find_element(By.ID, 'upFilter_expandedsearchbutton').click()
         self.wait.until(cond.visibility_of_element_located((By.ID, 'h_addsubjects_gridSubjects_ddlPageSize')))
+        # 500-ra allitjuk az oldalmeretet
         page_size_select = Select(self.browser.find_element(By.ID, 'h_addsubjects_gridSubjects_ddlPageSize'))
         page_size_select.select_by_value('500')
         self.wait.until(cond.visibility_of_element_located((By.ID, 'imganimation')))
         self.wait.until(cond.invisibility_of_element_located((By.ID, 'imganimation')))
 
+        # Betoltjuk az elso oldalt
         print('Kurzusok betoltese...')
         courses = self.read_currently_displayed_courses()
 
+        # Betoltjuk a tobbi oldalt (ha vannak)
         while True:
             try:
                 next_page_button = self.browser.find_element(By.CSS_SELECTOR, '.pagerlink_disabled + .pagerlink')
@@ -241,10 +264,12 @@ class AutomationWorker:
             self.wait.until(cond.invisibility_of_element_located((By.ID, 'imganimation')))
             courses.extend(self.read_currently_displayed_courses())
 
+        # Kiirjuk a kurzusokat
         for i in range(0, len(courses) - 1):
             print(f'[{i}] {courses[i].title} : {courses[i].subject_group} : {courses[i].credit_points} kredit : '
                   f'{"teljesített" if courses[i].completed else "még nem teljesített"}')
 
+        # Kereses
         input_str = 'a'
         while True:
             if input_str[0].isnumeric():
@@ -262,14 +287,17 @@ class AutomationWorker:
                         f'[{i}] {courses[i].title} : {courses[i].subject_group} : {courses[i].credit_points} kredit : '
                         f'{"teljesített" if courses[i].completed else "még nem teljesített"}')
 
+        # A kivalasztottra kattintunk
         (self.browser.find_element(By.CSS_SELECTOR, f'#h_addsubjects_gridSubjects_bodytable > tbody > '
                                                     f'tr:nth-child({chosen_course_id}) > td:nth-child(12) > span')
          .click())
 
         self.wait.until(cond.visibility_of_element_located((By.ID, 'Addsubject_course1_gridCourses_bodytable')))
 
+        # Olvassuk a kulonbozo idopontokat
         subcourses = self.read_subcourses()
 
+        # Ha egynel tobb van, akkor valaszthat a felhasznalo
         if len(subcourses) > 1:
             print('A választott kurzushoz több időpont is tartozik:')
             for i in range(0, len(subcourses)):
@@ -285,10 +313,13 @@ class AutomationWorker:
         else:
             subcourse_id = 0
 
+        # Kivalasztjuk az idopontot
         (self.browser.find_element(By.CSS_SELECTOR, f'#Addsubject_course1_gridCourses_bodytable > tbody > '
                                                     f'tr:nth-child({subcourse_id + 1}) > td:nth-child(14) > input')
          .click())
 
+        # Jelentkezunk a kurzusra
+        # Kiirjuk, hogy sikerult-e
         self.browser.find_element(By.ID, 'function_update1').click()
         try:
             self.wait_one.until(cond.visibility_of_element_located((By.ID, '_imgError')))
@@ -296,6 +327,8 @@ class AutomationWorker:
         except TimeoutException:
             print('A kurzusfelvétel sikeresen megtörtént!')
 
+        # Ez itt sok csunya dolog, mert a Neptun kodja egy rakas sz.
+        # Azert kellenek, hogy becsukodjon a popup
         self.wait.until(cond.visibility_of_element_located((By.CSS_SELECTOR, '.ui-dialog-footerbar.ui-widget-header'
                                                                              '.ui-corner-all.ui-helper-clearfix > '
                                                                              'input')))
@@ -310,6 +343,7 @@ class AutomationWorker:
         self.browser.execute_script('document.getElementsByClassName("ui-dialog ui-widget ui-widget-content '
                                     'ui-corner-all ui-front ui-draggable ui-resizable")[0].remove()')
 
+    # Az ezen az oldalon megjelenitett kurzusok olvasasa
     def read_currently_displayed_courses(self):
         courses = []
         courses_table = self.browser.find_element(By.ID, 'h_addsubjects_gridSubjects_bodytable')
@@ -336,6 +370,7 @@ class AutomationWorker:
 
         return courses
 
+    # A kurzus kulonbozo idopontjainak olvasasa
     def read_subcourses(self):
         subcourses = []
         subcourses_table = self.browser.find_element(By.ID, 'Addsubject_course1_gridCourses_bodytable')
@@ -359,7 +394,9 @@ class AutomationWorker:
 
         return subcourses
 
+    # Feleves atlagok mentese CSV fajlba
     def save_averages(self):
+        # Atnavigalunk az oldalra
         self.browser.find_element(By.ID, 'mb1_Tanulmanyok').click()
         self.browser.find_element(By.ID, 'mb1_Tanulmanyok_Tanulmanyiatlagok').click()
 
@@ -374,12 +411,14 @@ class AutomationWorker:
         # Megvarjuk, hogy betoltse az osszes felev adatat
         self.wait.until(cond.invisibility_of_element_located((By.ID, 'imganimation')))
 
+        # Megkeressuk a tabla es az adatok helyet
         table_body = self.browser.find_element(By.CSS_SELECTOR,
                                                '#h_officialnote_average_gridAverages_bodytable > tbody')
         semester_headers = self.browser.find_elements(By.CSS_SELECTOR, 'tr[hc="true"]')
         semester_subrows = self.browser.find_elements(By.CLASS_NAME, 'subrow')
         data = []
 
+        # Kiolvassuk minden felev adatait
         for i in range(0, len(semester_headers) - 1):
             title = semester_headers[i].find_element(By.CSS_SELECTOR, 'td:nth-child(2)').text
             values = semester_subrows[i].find_elements(By.CSS_SELECTOR, 'strong')
@@ -405,7 +444,7 @@ class AutomationWorker:
                                  cummulated_completion, two_semester_credits, two_semester_weighted_average,
                                  two_semester_adjusted_credit_index, financial_study_group, academic_study_group))
 
-
+        # Kiirjuk CSV fajlba
         with open('averages.csv', 'w') as file:
             writer = csv.writer(file, delimiter=';', lineterminator='\n')
             writer.writerow(['Félév', 'Hagyományos átlag', 'Kreditindex', 'Korrigált kreditindex', 'Elismert kredit',
